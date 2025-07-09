@@ -1,0 +1,492 @@
+---
+title: |
+  ![](logo2_od.jpg){width="150"}
+subtitle: "Dang Ateşi İçin SEI–SEIR Modeli"
+author: "Okan Derin"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  word_document:
+    toc: true
+    highlight: monochrome
+    df_print: tibble
+  html_document:
+    theme: cerulean
+    toc: true
+    toc_depth: 2
+    number_sections: true
+    highlight: tango
+    df_print: tibble
+lang: tr
+encoding: UTF-8
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+```
+
+```{r}
+setwd("~/drive/000000_tezim/0000_tezim/tezim_yeni/tezim_project")
+```
+
+
+
+```{r, include=FALSE}
+Sys.setenv(LANG = "tr_TR.UTF-8")
+Sys.setlocale(category = "LC_ALL", locale = "Turkish")
+
+```
+
+```{r include=FALSE}
+pacman::p_load(
+  tidyverse,
+  dplyr,
+  deSolve, 
+  patchwork,
+  knitr, 
+  kableExtra,
+  ggplot2,
+  gt,
+  tibble,
+  deSolve
+  )
+```
+
+## 5.2. Çalışma Tasarımı
+
+Bu tez çalışması, Türkiye'de yerleşik *Aedes albopictus* popülasyonunun bulunduğu bölgelerde, Dengue virüsünün (DENV) dış kaynaklı girişi (importation) sonrasında oluşabilecek yerel bulaş senaryolarını matematiksel olarak modellemeyi ve küresel iklim değişikliği projeksiyonları doğrultusunda olası epidemiyolojik sonuçları öngörmeyi amaçlamaktadır. Çalışma, mekanistik bir yaklaşımla yapılandırılmış ve iklim duyarlı deterministik bir SEI–SEIR modeli temelinde gerçekleştirilmiştir.
+
+Modelleme süreci, klasik bölmeli (*compartmental*) yapı esas alınarak tasarlanmıştır. İnsan popülasyonu için dört bölmeden oluşan bir SEIR modeli yapılandırılmıştır: duyarlı bireyler (`S_h`), maruziyet sonrası inkübasyon döneminde olan bireyler (`E_h`), enfekte ve bulaştırıcı bireyler (`I_h`) ve bağışıklık kazanmış bireyler (`R_h`). Vektör popülasyonu ise yalnızca dişi *Aedes* bireyleri dikkate alınarak üç bölme ile temsil edilmiştir: duyarlı (`S_v`), maruz kalmış (`E_v`) ve enfekte (`I_v`) bireyler.
+
+İnsan-vektör etkileşimleri, sıcaklık duyarlı parametrelerle modüle edilmiştir. Bunlar arasında ısırma oranı *a(T)*, vektör mortalite oranı *μ_v(T)* ve dışsal inkübasyon süresi *γ_v(T)* gibi değişkenler yer almaktadır. Bu parametre fonksiyonları, literatürde tanımlanmış sıcaklık-temelli modellerden (örneğin Brady et al., 2013; Salam et al., 2020) uyarlanarak modellenmiştir.
+
+Modelde ayrıca insan popülasyonunun uzun vadeli demografik değişimini yansıtmak amacıyla doğum ve ölüm oranları da dahil edilmiştir. SEIR denklemlerine, IPCC'nin SSP2-4.5 senaryosu altında Türkiye için yıllık olarak projekte edilen doğum oranı `Λ(t)` ve ölüm oranı `μ(t)` parametreleri entegre edilmiştir. Bu parametreler, her yıl için değişken olacak şekilde zaman serisi olarak modellenmiştir. Böylece doğum yoluyla sisteme yeni birey girişi sağlanırken, tüm birey gruplarında doğal ölüm riski eş zamanlı olarak dikkate alınmıştır. Bu yaklaşım, 2025–2100 dönemi boyunca insan popülasyonunun gerçekçi dinamiklerini yansıtmayı hedeflemektedir.
+
+Çalışmanın mekânsal kapsamı, *Aedes albopictus*’un invaziv tür olarak kalıcı yerleşim gösterdiği Türkiye'nin Karadeniz, Marmara ve Ege bölgeleri ile sınırlıdır. Bu bölgeler, Avrupa Hastalık Önleme ve Kontrol Merkezi (ECDC) ile T.C. Sağlık Bakanlığı’nın güncel sürveyans verileri doğrultusunda seçilmiştir. Modelin zamansal kapsamı ise 2025–2100 yılları arası olup, IPCC'nin küresel iklim değişikliği senaryolarına (özellikle SSP2-4.5 ve SSP5-8.5) dayalı projeksiyonları kapsamaktadır.
+
+Modelleme kapsamında iklim değişkenleri (ortalama sıcaklık, minimum sıcaklık, bağıl nem ve aylık toplam yağış), raster formatında elde edilerek zaman serilerine dönüştürülmüş ve modelin girdilerine entegre edilmiştir. Tüm bu bileşenler, bölge bazlı vektör-hasta etkileşimlerini kapsayan entegre bir sistem modeli içerisinde, olası yayılım dinamiklerini ve halk sağlığı sonuçlarını öngörmek amacıyla analiz edilmiştir.
+
+### 5.3. Model Parametreleri ve Girdi Verileri
+
+Bu çalışmada kullanılan SEI–SEIR modelinin parametrizasyonu, literatür verileri ve Türkiye’ye özgü iklim ile demografik projeksiyonlara dayalı olarak gerçekleştirilmiştir. Modelin girdileri, insan ve vektör popülasyonlarına ait biyolojik parametreler ile çevresel ve demografik değişkenleri kapsamaktadır. Parametreler sabit (statik) ve zaman-değişkenli (dinamik) olarak iki ana grupta değerlendirilmiştir.
+
+### 5.3.1. Model Parametreleri
+
+Modelde kullanılan parametreler işlevsel yapılarına göre üç grupta sınıflandırılmıştır: **statik**, **sıcaklık-temelli dinamik** ve **zamana bağlı dinamik**. Bu sınıflama, modelin hem biyolojik gerçekçiliğini hem de çevresel-duyarlılığını desteklemek amacıyla yapılmıştır.
+
+#### Tablo 1. SEI–SEIR Modelinde Kullanılan Temel Parametreler
+
+| Parametre        | Tanım                                           | Tipi                          | Değer/Aralık                | Kaynaklar                        |
+|------------------|--------------------------------------------------|-------------------------------|-----------------------------|----------------------------------|
+| `σ`              | İnsanlarda iç inkübasyon oranı                  | Statik                        | 1/5.9 gün⁻¹                 | WHO, 2009; Reiner et al.         |
+| `γ`              | İnsanlarda iyileşme oranı                       | Statik                        | 1/6.1 gün⁻¹                 | Johansson et al., 2011           |
+| `β_hv`           | İnsan → vektör bulaşma katsayısı               | Statik                        | 0.33                        | Massad et al., 2001              |
+| `β_vh`           | Vektör → insan bulaşma katsayısı               | Statik                        | 0.4                         | Focks et al., 2000               |
+| `a(T)`           | Isırma oranı                                    | Sıcaklık-temelli dinamik      | 0.2–0.5                     | Brady et al., 2013               |
+| `μ_v(T)`         | Vektör doğal ölüm oranı                         | Sıcaklık-temelli dinamik      | 0.05–0.3                    | Liu et al., 2020                 |
+| `γ_v(T)`         | Dışsal inkübasyon oranı (vektörde)             | Sıcaklık-temelli dinamik      | 1/12 – 1/6 gün⁻¹            | Watts et al., 1987; Lambrechts et al. |
+| `Λ(t)`           | İnsan doğum oranı                               | Zamana bağlı dinamik          | 0.0092–0.0141               | SSP2-4.5; Wittgenstein Centre    |
+| `μ_h(t)`         | İnsan doğal ölüm oranı                          | Zamana bağlı dinamik          | 0.0056–0.0101               | SSP2-4.5; Wittgenstein Centre    |
+
+```{r gt-parametreler, message=FALSE, warning=FALSE}
+library(gt)
+library(tibble)
+
+parametreler <- tribble(
+  ~Parametre, ~Tanım, ~Tipi, ~`Değer / Aralık`, ~Kaynaklar,
+  "σ", "İnsanlarda iç inkübasyon oranı", "Statik", "1/5,9 gün⁻¹", "WHO (2009); Reiner et al. (2013)",
+  "γ", "İnsanlarda iyileşme oranı", "Statik", "1/6,1 gün⁻¹", "Navarro-Valencia et al. (2023)",
+  "β_hv", "İnsan → vektör bulaşma katsayısı", "Statik", "0,33 (0,2–0,5)", "Massad et al. (2001); Lord et al. (2006); Liu et al. (2020)",
+  "β_vh", "Vektör → insan bulaşma katsayısı", "Statik", "0,4 (0,3–0,5)", "Focks et al. (2000); Yakob et al. (2016)",
+  "a(T)", "Isırma oranı", "Sıcaklık-bağımlı dinamik", "0,2–0,5", "Brady et al. (2013)",
+  "μ_v(T)", "Vektör doğal ölüm oranı", "Sıcaklık-bağımlı dinamik", "0,05–0,3", "Liu et al. (2020)",
+  "γ_v(T)", "Dışsal inkübasyon oranı (vektörde)", "Sıcaklık-bağımlı dinamik", "1/12–1/6 gün⁻¹", "Watts et al. (1987); Lambrechts et al. (2011)",
+  "Λ(t)", "İnsan doğum oranı", "Zamana bağlı dinamik", "0,0092–0,0141", "SSP2-4.5; Wittgenstein Centre",
+  "μ_h(t)", "İnsan doğal ölüm oranı", "Zamana bağlı dinamik", "0,0056–0,0101", "SSP2-4.5; Wittgenstein Centre"
+)
+
+parametreler %>%
+  gt() %>%
+  tab_header(title = "SEI–SEIR Modelinde Kullanılan Temel Parametreler") %>%
+  cols_label(
+    `Değer / Aralık` = "Değer / Aralık"
+  )
+```
+
+
+
+#### Açıklamalar:
+- **Statik parametreler**, tüm model süresi boyunca sabit tutulan sabitlerdir ve literatür ortalaması değerleri esas alınmıştır.
+- **Sıcaklık-temelli parametreler**, modele entegre edilen sıcaklık raster verilerine göre günlük olarak değişir.
+- **Zamana bağlı parametreler**, SSP2-4.5 senaryosu altında Türkiye için her yıl projekte edilen değerlerdir ve zaman serisi olarak modellenmiştir.
+
+
+#### 5.3.2. Sıcaklık Duyarlı Dinamik Parametreler
+
+Sıcaklıkla değişen parametreler, literatürde tanımlanmış fonksiyonel biçimler kullanılarak aşağıda belirtilen şekilde modellenmiştir:
+
+-   **Isırma oranı (`a(T)`):**\
+    Brady et al. (2013) çalışmasında önerilen sıcaklığa bağlı doğrusal-fonksiyonel yapı kullanılmıştır.
+-   **Vektör mortalite oranı (`μv(T)`):**\
+    Aedes’in yaşam süresini sıcaklıkla ilişkilendiren ters-U biçimli fonksiyonlardan faydalanılmıştır.
+-   **Dışsal inkübasyon süresi (`γv(T)`):**\
+    Dengue virüsünün sıcaklıkla hızlanan replikasyonunu temsil edecek şekilde tanımlanmıştır.
+
+Bu parametrelerin tanımlandığı formüller ve sıcaklık aralıkları Ek 1’de ayrıntılı olarak sunulmuştur.
+
+#### 5.3.3. İklimsel Girdi Verileri
+
+İklimsel değişkenler CRU-TS ve/veya CMIP6 veri setlerinden elde edilmiştir. Aşağıdaki değişkenler raster formatında indirildikten sonra ilçe düzeyinde ortalama değerlerle zaman serisi hâline getirilmiştir:
+
+-   Ortalama sıcaklık (°C)
+-   Minimum sıcaklık (°C)
+-   Aylık toplam yağış (mm)
+-   Bağıl nem (%)
+
+Projeksiyon dönemi 2025–2100 olarak belirlenmiş, SSP2-4.5 senaryosuna göre yıllık bazda modellenmiştir.
+
+#### 5.3.4. Demografik Girdiler
+
+İnsan nüfusu ve doğum/ölüm oranları SSP2-4.5 senaryosuna dayalı olarak Wittgenstein Centre ve TÜİK verileri ışığında projekte edilmiştir. Her yıl için:
+
+-   Toplam nüfus (`Nh`)
+-   Yıllık doğum oranı (`Λ(t)`)
+-   Yıllık ölüm oranı (`μ(t)`)
+
+zaman serisi hâlinde modele entegre edilmiştir.
+
+#### 5.3.5. Epidemiyolojik Girdiler
+
+-   Türkiye’deki Dang Ateşi insidansı (ithal vakalar)
+-   Vektör dağılımına ilişkin Sağlık Bakanlığı ve ECDC verileri
+-   Dang virüs serotiplerine ilişkin geçmiş bölgesel örneklem raporları
+
+Bu veriler, modelin başlangıç koşullarının belirlenmesinde ve kalibrasyon aşamasında kullanılmıştır.
+
+# Giriş
+
+Bu çalışmada, Türkiye'de potansiyel olarak ortaya çıkabilecek dang ateşi yayılımının tahmini amacıyla SEI–SEIR bölmeli model geliştirilmiştir. Model 2025–2100 yıllarını kapsar ve **her yıl 3 aylık periyotlarla (quarterly)** değerlendirilmiştir. Bu zaman aralığı, hem mevsimsel varyasyonların modellenmesine hem de uzun dönemli iklim projeksiyonlarına uyum sağlar.
+
+# Modelin Matematiksel Yapısı
+
+$$
+\begin{aligned}
+\frac{dS_h}{dt} &= \mu_h N_h - \beta_{hv} \cdot S_h \cdot \frac{I_v}{N_v} - \mu_h S_h \\\\
+\frac{dE_h}{dt} &= \beta_{hv} \cdot S_h \cdot \frac{I_v}{N_v} - \sigma_h E_h - \mu_h E_h \\\\
+\frac{dI_h}{dt} &= \sigma_h E_h - \gamma_h I_h - \mu_h I_h \\\\
+\frac{dR_h}{dt} &= \gamma_h I_h - \mu_h R_h
+\end{aligned}
+$$
+
+$$
+\begin{aligned}
+\frac{dS_v}{dt} &= \mu_v N_v - \beta_{vh} \cdot S_v \cdot \frac{I_h}{N_h} - \mu_v S_v \\\\
+\frac{dE_v}{dt} &= \beta_{vh} \cdot S_v \cdot \frac{I_h}{N_h} - \sigma_v E_v - \mu_v E_v \\\\
+\frac{dI_v}{dt} &= \sigma_v E_v - \mu_v I_v
+\end{aligned}
+$$
+
+# Parametreler
+
+```{r}
+params <- c(
+  beta_hv = 0.25,
+  beta_vh = 0.35,
+  sigma_h = 1/5,
+  gamma_h = 1/7,
+  sigma_v = 1/10,
+  mu_h = 1/(70*365),
+  mu_v = 1/14
+)
+```
+
+
+
+
+
+
+```{r}
+df_main <- readr::read_csv("~/drive/000000_tezim/0000_tezim/tezim_yeni/tezim/tn_data/df_main.csv")
+
+df_main <- df_main %>% 
+  filter(!year %in% 2015:2023) 
+
+df_main <- df_main %>%
+  mutate(
+    month_cat = factor(
+      case_when(
+        month == 1 ~ "Ocak",
+        month == 2 ~ "Subat",
+        month == 3 ~ "Mart",
+        month == 4 ~ "Nisan",
+        month == 5 ~ "Mayis",
+        month == 6 ~ "Haziran",
+        month == 7 ~ "Temmuz",
+        month == 8 ~ "Agustos",
+        month == 9 ~ "Eylul",
+        month == 10 ~ "Ekim",
+        month == 11 ~ "Kasim",
+        month == 12 ~ "Aralik"
+      ),
+      levels = c("Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran",
+                 "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"),
+      ordered = TRUE
+    )
+  )
+
+
+```
+
+
+# Sıcaklık tabanlı sivrisinek parametre fonksiyonları
+# Sıcaklık birimi: °C
+
+# Isırma oranı (biting rate) α(T): Gaussian fonksiyonu şeklinde
+```{r}
+alpha_T <- function(T) {
+  # Optimum sıcaklık 28°C, çok düşük ve çok yüksek sıcaklıklarda düşüş
+  a_max <- 0.5
+  T_opt <- 28
+  sd <- 5
+  a_max * exp(-((T - T_opt)^2) / (2 * sd^2))
+}
+```
+
+
+
+# Sivrisinek ölümlerinin sıcaklığa bağlı fonksiyonu μᵥ(T):
+```{r}
+mu_v_T <- function(T) {
+  # Brady et al. 2013'e göre yaşam süreleriyle ters orantılı ölümlülük
+  lifespan <- exp(-((T - 28)^2) / (2 * 7^2)) * 30  # max 30 gün
+  mu <- 1 / lifespan
+  mu[is.infinite(mu)] <- 1  # Aşırı sıcaklık durumlarında ölüm oranı 1
+  return(mu)
+}
+```
+
+
+# Vektör içi kuluçka oranı σᵥ(T)
+```{r}
+sigma_v_T <- function(T) {
+  # En hızlı kuluçka 28°C civarında, 7 gün kadar
+  incubation_period <- exp(-((T - 28)^2) / (2 * 6^2)) * 14  # max 14 gün
+  sigma <- 1 / incubation_period
+  sigma[is.infinite(sigma)] <- 0
+  return(sigma)
+}
+```
+
+
+
+
+# Yumurtadan çıkış gelişim hızı fonksiyonu (sıcaklığa bağlı)
+```{r}
+egg_dev_rate <- function(temp_C) {
+  # Parçalı doğrusal model
+  ifelse(temp_C < 10 | temp_C > 40, 0,
+         ifelse(temp_C < 20,
+                (temp_C - 10) / 10 * 0.1,
+                ifelse(temp_C <= 30,
+                       0.1 + (temp_C - 20) / 10 * 0.1,
+                       0.2 - (temp_C - 30) / 10 * 0.1)))
+}
+```
+
+
+# Yumurta hayatta kalma oranı fonksiyonu (bağıl neme bağlı)
+```{r}
+egg_survival_rate <- function(humidity_percent) {
+  # 40%-100% arasında doğrusal artış
+  ifelse(humidity_percent < 40, 0,
+         ifelse(humidity_percent > 100, 1,
+                (humidity_percent - 40) / 60))
+}
+
+
+```
+
+
+```{r}
+# Uygulama
+df_main <- df_main %>%
+  mutate(
+    alpha = alpha_T(tas_C),
+    mu_v = mu_v_T(tas_C),
+    sigma_v = sigma_v_T(tas_C),
+    egg_dev_rate = egg_dev_rate(tas_C),
+    egg_survival_rate = egg_survival_rate(hur_percent)
+  )
+```
+
+
+```{r}
+m_climate_sensitive <- function(temp_C, humidity_percent) {
+  # Sıcaklık etkisi (maksimum 3)
+  temp_effect <- ifelse(temp_C < 15 | temp_C > 35, 0,
+                        ifelse(temp_C <= 25, (temp_C - 15)/10 * 1.5,  # 15-25 arası 0–1.5
+                               (35 - temp_C)/10 * 1.5))  # 25–35 arası 1.5–0
+
+  # Nem etkisi (maksimum 1.5)
+  hum_effect <- ifelse(humidity_percent < 40, 0,
+                       ifelse(humidity_percent > 100, 1.5,
+                              (humidity_percent - 40)/60 * 1.5))
+  
+  # Toplam vektör-insan oranı (m)
+  m <- temp_effect + hum_effect
+  return(m)
+}
+
+
+df_main <- df_main %>%
+  mutate(
+    m_dynamic = m_climate_sensitive(tas_C, hur_percent),
+    pop_vector = m_dynamic * ilce_nufus
+  )
+
+df_main <- df_main %>%
+  mutate(
+    # Ay isimlerini 1–12 arası numaraya çevir
+    month_num = as.numeric(factor(month_cat, 
+                                  levels = c("Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran",
+                                             "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"),
+                                  ordered = TRUE)),
+    # Ay ve yıl bilgilerini kullanarak "tahmini" tarih oluştur (her ayın 15. günü)
+    date = as.Date(paste(year, month_num, 15, sep = "-"))
+  )
+
+
+
+library(ggplot2)
+ggplot(df_main, aes(x = date, y = m_dynamic, color = location)) +
+  geom_line() +
+  labs(title = "Vektör-İnsan Oranı (m) Zaman Serisi", y = "m (Sivrisinek/İnsan)", x = "Tarih") +
+  theme_minimal()
+
+ggplot(df_main, aes(x = date, y = m_dynamic, color = location)) +
+  geom_point(alpha = 0.2, size = 0.5) +
+  geom_smooth(se = FALSE, method = "loess", span = 0.3, size = 1) +
+  facet_wrap(~ location, scales = "free_y") +
+  labs(title = "İlçelere Göre Vektör-İnsan Oranı Trendleri", 
+       y = "m (Sivrisinek/İnsan)", x = "Tarih") +
+  theme_minimal()
+
+
+```
+
+
+
+
+
+
+
+```{r}
+readr:: write_csv(df_main, "df_param.csv")
+```
+
+
+# Model Fonksiyonu
+
+```{r}
+library(deSolve)
+
+# SEI-SEIR modeli tanımı (vektör + insan)
+seirsei_model <- function(time, state, parameters) {
+  with(as.list(c(state, parameters)), {
+    
+    Nh <- Sh + Eh + Ih + Rh  # Toplam insan nüfusu
+    Nv <- Sv + Ev + Iv       # Toplam vektör nüfusu
+
+    # İnsan bölmeleri
+    dSh <- mu_h * Nh - beta_hv * Sh * Iv / Nv - mu_h * Sh
+    dEh <- beta_hv * Sh * Iv / Nv - sigma_h * Eh - mu_h * Eh
+    dIh <- sigma_h * Eh - gamma_h * Ih - mu_h * Ih
+    dRh <- gamma_h * Ih - mu_h * Rh
+
+    # Vektör bölmeleri
+    dSv <- mu_v * Nv - beta_vh * Sv * Ih / Nh - mu_v * Sv
+    dEv <- beta_vh * Sv * Ih / Nh - sigma_v * Ev - mu_v * Ev
+    dIv <- sigma_v * Ev - mu_v * Iv
+
+    # Türevleri birleştir
+    list(c(dSh, dEh, dIh, dRh, dSv, dEv, dIv))
+  })
+}
+
+```
+
+
+
+
+
+
+```{r}
+sei_seir_step_monthly <- function(state, pars) {
+  with(as.list(c(state, pars)), {
+    # Yeni enfekte bireyler
+    new_Eh <- beta_vh * S_h * I_v / N_h
+    new_Ih <- sigma_h * E_h
+    new_Rh <- gamma_h * I_h
+
+    new_Ev <- beta_hv * S_v * I_h / N_h
+    new_Iv <- sigma_v * E_v
+
+    # Güncellenmiş stoklar
+    S_h_new <- S_h - new_Eh
+    E_h_new <- E_h + new_Eh - new_Ih
+    I_h_new <- I_h + new_Ih - new_Rh
+    R_h_new <- R_h + new_Rh
+
+    S_v_new <- S_v - new_Ev - mu_v * S_v
+    E_v_new <- E_v + new_Ev - new_Iv - mu_v * E_v
+    I_v_new <- I_v + new_Iv - mu_v * I_v
+
+    return(c(S_h = S_h_new, E_h = E_h_new, I_h = I_h_new, R_h = R_h_new,
+             S_v = S_v_new, E_v = E_v_new, I_v = I_v_new))
+  })
+}
+
+```
+
+
+```{r}
+library(dplyr)
+library(purrr)
+
+# Başlangıç değerleri
+initial_state <- c(S_h = 9990, E_h = 5, I_h = 5, R_h = 0,
+                   S_v = 100000, E_v = 0, I_v = 0)
+
+# Sabit insan parametreleri
+beta_vh <- 0.3
+beta_hv <- 0.5
+sigma_h <- 1/5   # İnsan kuluçka süresi
+gamma_h <- 1/7   # İnsan iyileşme süresi
+
+# Simülasyon
+results_list <- vector("list", nrow(df_main))
+state <- initial_state
+
+for (i in seq_len(nrow(df_main))) {
+  row <- df_main[i, ]
+  N_h <- row$ilce_nufus
+  pars <- list(
+    beta_vh = beta_vh,
+    beta_hv = beta_hv,
+    sigma_h = sigma_h,
+    gamma_h = gamma_h,
+    sigma_v = row$sigma_v,
+    mu_v = row$mu_v,
+    N_h = N_h
+  )
+  results_list[[i]] <- cbind(row, as.data.frame(as.list(state)))
+  state <- sei_seir_step_monthly(state, pars)
+}
+
+# Sonuçları birleştir
+sei_seir_results <- bind_rows(results_list)
+
+readr:: write_csv(sei_seir_results, "df_seir.csv")
+```
+
+

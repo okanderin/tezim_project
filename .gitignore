@@ -1,0 +1,47 @@
+# R and RStudio
+.Rhistory
+.RData
+.Rproj.user/
+.Ruserdata
+.Rprofile
+
+# renv virtual environment
+renv/library/
+renv/python/
+renv/staging/
+
+# Output and intermediate files
+*.html
+*.pdf
+*.docx
+*.log
+*.aux
+*.out
+*.toc
+
+# Cache folders
+_cache/
+_quarto/
+
+# Figures and temporary outputs
+figures/*.png
+figures/*.jpg
+
+# Large or private data
+data/*.csv
+data/*.xlsx
+data/*.nc
+data/*.rds
+data/*.sav
+
+# System/OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# VS Code
+.vscode/
+.Rproj.user
+.Rdata
+.httr-oauth
+.quarto

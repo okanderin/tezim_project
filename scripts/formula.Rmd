@@ -1,0 +1,34 @@
+---
+title: "Untitled"
+output:
+  word_document: default
+  html_document: default
+date: "2025-06-09"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Açıklama – Tezde Kullanılabilecek Akademik Metin Bu çalışmada, erişkin
+Aedes albopictus bireylerinin sıcaklığa bağlı ölüm oranı ( 𝜇 𝑣 ( 𝑇 ) μ v
+​(T)) Brady et al. (2013) çalışmasında önerilen Gaussian temelli yaşam
+süresi fonksiyonuna dayanarak tanımlanmıştır. Model, sıcaklık arttıkça
+yaşam süresinin optimum bir noktaya kadar arttığını, ardından ise
+azaldığını ifade eder. Elde edilen ortalama yaşam süresi ( 𝐿 ( 𝑇 ) L(T))
+1 günün altına düştüğünde, biyolojik gerçeklikle uyumlu olmak üzere
+mortalite oranı 𝜇 𝑣 ( 𝑇 ) = 1   g u ¨ n − 1 μ v ​ (T)=1g u ¨ n −1 olarak
+sınırlandırılmıştır. Bu yaklaşım, hem matematiksel tutarlılık hem de
+biyolojik geçerlilik sağlar:
+
+$$
+\mu_v(T) = \begin{cases}
+1, & \text{eğer } L(T) < 1 \\
+\frac{1}{L(T)}, & \text{eğer } L(T) \geq 1
+\end{cases}
+\quad \text{ve} \quad
+L(T) = 18 \cdot \exp\left( -\left( \frac{T - 27}{5.5} \right)^2 \right)
+$$
